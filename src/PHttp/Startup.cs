@@ -11,9 +11,14 @@ namespace PHttp
     {
         public void LoadApps()
         {
-            string path = ConfigurationManager.AppSettings["ApplicationsDir"];
+			var relativeDir = ConfigurationManager.AppSettings ["ApplicationsDir"];
 
-            if (string.IsNullOrEmpty(path)) { return; } //sanity check
+			if (string.IsNullOrWhiteSpace (relativeDir))
+				return;
+
+			var currentDir = Environment.CurrentDirectory;
+			var path = currentDir.Substring (0, currentDir.IndexOf (relativeDir.Split('/')[0]));
+			path = Path.Combine (path, relativeDir);
 
             var info = new DirectoryInfo(path);
             if (!info.Exists) { return; } //make sure directory exists
