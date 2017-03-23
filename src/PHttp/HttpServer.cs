@@ -167,7 +167,7 @@ namespace PHttp
 				Stop ();
 			
 			if (_clientsChangedEvent != null) {
-				_clientsChangedEvent.Dispose ();
+				_clientsChangedEvent.Dispose();
 				_clientsChangedEvent = null;
 			}
 

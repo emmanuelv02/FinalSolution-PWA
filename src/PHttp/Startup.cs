@@ -13,7 +13,7 @@ namespace PHttp
         {
 			var relativeDir = ConfigurationManager.AppSettings ["ApplicationsDir"];
 
-			if (string.IsNullOrWhiteSpace (relativeDir))
+			if (string.IsNullOrEmpty (relativeDir))
 				return;
 
 			var currentDir = Environment.CurrentDirectory;
