@@ -2,12 +2,11 @@
 using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace PHttp
 {
@@ -36,6 +35,27 @@ namespace PHttp
         public List<HttpMultiPartItem> MultiPartItems { get; set; }
         public NameValueCollection PostParameters { get; set; }
 
+
+        public HttpClient(HttpServer server, TcpClient client)
+        {
+            if (server == null) throw new ArgumentNullException("server");
+            if (client == null) throw new ArgumentNullException("client");
+
+            Server = server;
+            TcpClient = client;
+
+            ReadBuffer = new HttpReadBuffer(server.ReadBufferSize);
+            _writeBuffer = new byte[server.WriteBufferSize];
+
+            _stream = client.GetStream();
+        }
+
+        internal void BeginRequest()
+        {
+            Reset();
+            BeginRead();
+        }
+
         private void BeginRead()
         {
             if (_disposed)
@@ -49,7 +69,7 @@ namespace PHttp
                     this
                 );
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 Dispose();
             }
@@ -67,7 +87,7 @@ namespace PHttp
 
             try
             {
-                ReadBuffer.EndRead(InputStream, asyncResult);
+                ReadBuffer.EndRead(_stream, asyncResult);
                 if (ReadBuffer.DataAvailable)
                 {
                     ProcessReadBuffer();
@@ -89,7 +109,253 @@ namespace PHttp
 
         private void ProcessException(Exception exception)
         {
+            if(_disposed) return;
 
+            _errored = true;
+            if (Request == null)
+            {
+                Dispose();
+                return;
+            }
+
+            try
+            {
+                if (_context == null)
+                    _context = new HttpContext(this);
+
+                _context.Response.Status = "500 Internal Server Error";
+                var handled = false;
+
+                try
+                {
+                    handled = Server.RaiseUnhandledException(_context, exception);
+                }
+                catch
+                {
+                    //Unhandled exception
+                }
+
+                if (!handled && _context.Response.OutputStream.CanWrite)
+                {
+                    //TODO review this
+                    var resourceName = GetType().Namespace + ".Resources.InternalServerError.html";
+
+                    using (var stream = GetType().Assembly.GetManifestResourceStream(resourceName))
+                    {
+                        byte[] buffer = new byte[4096];
+                        int read;
+
+                        while ((read = stream.Read(buffer, 0, buffer.Length)) != 0)
+                        {
+                            _context.Response.OutputStream.Write(buffer, 0, read);
+                        }
+                    }
+                }
+
+                WriteResponseHeaders();
+            }
+            catch (Exception e)
+            {
+                Dispose();
+            }
+
+        }
+
+        private void WriteResponseHeaders()
+        {
+            var headers = BuildResponseHeaders();
+
+            if (_writeStream != null)
+                _writeStream.Dispose();
+
+            _writeStream = new MemoryStream(headers);
+
+            _state = ClientState.WritingHeaders;
+
+            BeginWrite();
+        }
+
+        private void BeginWrite()
+        {
+            try
+            {
+                // Copy the next part from the write stream.
+
+                int read = _writeStream.Read(_writeBuffer, 0, _writeBuffer.Length);
+
+                Server.TimeoutManager.WriteQueue.Add(
+                    _stream.BeginWrite(_writeBuffer, 0, read, WriteCallback, null),
+                    this
+                );
+            }
+            catch (Exception e)
+            {
+                //Log.Info("BeginWrite failed", e);
+
+                Dispose();
+            }
+        }
+
+        private void WriteResponseContent()
+        {
+            if (_writeStream != null)
+                _writeStream.Dispose();
+
+            _writeStream = _context.Response.OutputStream.BaseStream;
+            _writeStream.Position = 0;
+
+            _state = ClientState.WritingContent;
+
+            BeginWrite();
+        }
+        private void WriteCallback(IAsyncResult asyncResult)
+        {
+            if (_disposed)
+                return;
+
+            try
+            {
+                _stream.EndWrite(asyncResult);
+
+                if (_writeStream != null && _writeStream.Length != _writeStream.Position)
+                {
+                    // Continue writing from the write stream.
+
+                    BeginWrite();
+                }
+                else
+                {
+                    if (_writeStream != null)
+                    {
+                        _writeStream.Dispose();
+                        _writeStream = null;
+                    }
+
+                    switch (_state)
+                    {
+                        case ClientState.WritingHeaders:
+                            WriteResponseContent();
+                            break;
+
+                        case ClientState.WritingContent:
+                            ProcessRequestCompleted();
+                            break;
+
+                        default:
+                            Debug.Assert(_state != ClientState.Closed);
+
+                            if (ReadBuffer.DataAvailable)
+                            {
+                                try
+                                {
+                                    ProcessReadBuffer();
+                                }
+                                catch (Exception ex)
+                                {
+                                    ProcessException(ex);
+                                }
+                            }
+                            else
+                            {
+                                BeginRead();
+                            }
+                            break;
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                //Log.Info("Failed to write", e);
+
+                Dispose();
+            }
+        }
+
+
+        private void ProcessRequestCompleted()
+        {
+            string connectionHeader;
+
+            // Do not accept new requests when the server is stopping.
+
+            if (
+                !_errored &&
+                Server.State == HttpServerState.Started &&
+                Headers.TryGetValue("Connection", out connectionHeader) &&
+                string.Equals(connectionHeader, "keep-alive", StringComparison.OrdinalIgnoreCase)
+            )
+                BeginRequest();
+            else
+                Dispose();
+        }
+
+        private void WriteHeader(StringBuilder sb, string key, string value)
+        {
+            sb.Append(key);
+            sb.Append(": ");
+            sb.Append(value);
+            sb.Append("\r\n");
+        }
+
+
+        private byte[] BuildResponseHeaders()
+        {
+            var response = _context.Response;
+            var sb = new StringBuilder();
+
+            // Write the prolog.
+
+            sb.Append(Protocol);
+            sb.Append(' ');
+            sb.Append(response.StatusCode);
+
+            if (!string.IsNullOrEmpty(response.StatusDescription))
+            {
+                sb.Append(' ');
+                sb.Append(response.StatusDescription);
+            }
+
+            sb.Append("\r\n");
+
+            // Write all headers provided by Response.
+
+            if (!string.IsNullOrEmpty(response.CacheControl))
+                WriteHeader(sb, "Cache-Control", response.CacheControl);
+
+            if (!string.IsNullOrEmpty(response.ContentType))
+            {
+                var contentType = response.ContentType;
+
+                if (!string.IsNullOrEmpty(response.CharSet))
+                    contentType += "; charset=" + response.CharSet;
+
+                WriteHeader(sb, "Content-Type", contentType);
+            }
+
+            WriteHeader(sb, "Expires", response.ExpiresAbsolute.ToString("R"));
+
+            if (!string.IsNullOrEmpty(response.RedirectLocation))
+                WriteHeader(sb, "Location", response.RedirectLocation);
+
+            // Write the remainder of the headers.
+
+            foreach (string key in response.Headers.AllKeys)
+            {
+                WriteHeader(sb, key, response.Headers[key]);
+            }
+
+            // Write the content length (we override custom headers for this).
+
+            WriteHeader(sb, "Content-Length", response.OutputStream.BaseStream.Length.ToString(CultureInfo.InvariantCulture));
+
+            for (var i = 0; i < response.Cookies.Count; i++)
+            {
+                WriteHeader(sb, "Set-Cookie", response.Cookies[i].GetHeaderValue());
+            }
+
+            sb.Append("\r\n");
+
+            return response.HeadersEncoding.GetBytes(sb.ToString());
         }
 
         private void ProcessReadBuffer()
@@ -109,6 +375,8 @@ namespace PHttp
                     case ClientState.ReadingContent:
                         ProcessContent();
                         break;
+                    default: 
+                        throw new InvalidOperationException("Invalid state: " + _state);
                 }
             }
 
@@ -120,17 +388,16 @@ namespace PHttp
             var readBuffer = ReadBuffer.ReadLine();
             if (string.IsNullOrEmpty(readBuffer)) return;
 
-            var matchResults = PrologRegex.Matches(readBuffer);
+            var matchResult = PrologRegex.Match(readBuffer);
 
-            //TODO check for outofrange
-            if (!matchResults[0].Success || !matchResults[1].Success || !matchResults[1].Success)
+            if (!matchResult.Success)
             {
                 throw new ProtocolException("The prolog could not be parsed: " + readBuffer);
             }
 
-            Method = matchResults[0].Value;
-            Request = matchResults[1].Value;
-            Protocol = matchResults[2].Value;
+            Method = matchResult.Groups[1].Value;
+            Request = matchResult.Groups[2].Value;
+            Protocol = matchResult.Groups[3].Value;
 
             _state = ClientState.ReadingHeaders;
 
@@ -175,9 +442,11 @@ namespace PHttp
             }
         }
 
-        private void ExecuteRequest()
+        public void ExecuteRequest()
         {
-
+            _context = new HttpContext(this);
+            Server.RaiseRequest(_context);
+            WriteResponseHeaders();
         }
 
         private void Reset()
@@ -348,42 +617,22 @@ namespace PHttp
 
         public void Dispose()
         {
-            _state = ClientState.ReadingProlog;
-            _context = null;
-            if (_parser != null)
+            if (!_disposed)
             {
-                _parser.Dispose();
-                _parser = null;
-            }
-
-            if (_writeStream != null)
-            {
-                _writeStream.Dispose();
-                _writeStream = null;
-            }
-
-            if (InputStream != null)
-            {
-                InputStream.Dispose();
-                InputStream = null;
-            }
-
-            ReadBuffer.Reset();
-            Method = null;
-            Protocol = null;
-            Request = null;
-            Headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            PostParameters = new NameValueCollection();
-
-            if (MultiPartItems != null)
-            {
-                foreach (var item in MultiPartItems)
+                Server.UnregisterClient(this);
+                _state = ClientState.Closed;
+                if (_stream != null)
                 {
-                    if (item.Stream != null)
-                        item.Stream.Dispose();
+                    _stream.Dispose();
+                    _stream = null;
                 }
-
-                MultiPartItems = null;
+                if (TcpClient != null)
+                {
+                    TcpClient.Close();
+                    TcpClient = null;
+                }
+                Reset();
+                _disposed = true;
             }
         }
     }

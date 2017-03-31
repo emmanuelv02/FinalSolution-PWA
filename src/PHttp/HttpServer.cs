@@ -1,179 +1,365 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 
 namespace PHttp
 {
-	public class HttpServer : IDisposable
-	{
-		private const int WriteReadBufferSize = 4096;
-		private const int ShutdownTimeout = 30;
-		private const int WriteReadTimeOut = 90;
+    public class HttpStateChangedEventArgs : EventArgs
+    {
+        public HttpStateChangedEventArgs(HttpServerState previousState, HttpServerState currentState)
+        {
+            PreviousState = previousState;
+            CurrentState = currentState;
+        }
 
-		private TcpListener _tcpListener;
-		private AutoResetEvent _clientsChangedEvent = new AutoResetEvent (false);
-		private bool _disposed;
-		private HttpServerState _state = HttpServerState.Stopped;
+        public HttpServerState CurrentState { get; private set; }
+        public HttpServerState PreviousState { get; private set; }
+    }
 
-		#region Properties
+    public class HttpServer : IDisposable
+    {
+        private const int WriteReadBufferSize = 4096;
+        private const int ShutdownTimeout = 30;
+        private const int WriteReadTimeOut = 90;
 
-		public EventHandler StateChanged{ get; set; }
+        private TcpListener _tcpListener;
+        private AutoResetEvent _clientsChangedEvent = new AutoResetEvent(false);
+        private readonly Dictionary<HttpClient, bool> _clients = new Dictionary<HttpClient, bool>();
+        private bool _disposed;
+        private HttpServerState _state = HttpServerState.Stopped;
+        private readonly object _syncLock = new object();
 
-		public HttpServerState State { 
-			get { return _state; } 
-			set {
-				if (value != _state) {
-					_state = value;
-					OnStateChanged (new EventArgs());
-				}
-			}
-		}
 
-		public IPEndPoint EndPoint { get; private set; }
-		public int Port{ get; private set;}
+        #region Properties
 
-		public int ReadBufferSize { get; set; }
+        public EventHandler StateChanged { get; set; }
+        public HttpRequestEventHandler RequestReceived { get; set; }
+        public EventHandler UnhandledException { get; set; }
 
-		public int WriteBufferSize { get; set; }
+        public HttpServerState State
+        {
+            get { return _state; }
+            private set
+            {
+                if (value != _state)
+                {
+                    var e = new HttpStateChangedEventArgs(_state, value);
+                    _state = value;
+                    OnStateChanged(e);
+                }
+            }
+        }
 
-		public string ServerBanner { get; set; }
+        public IPEndPoint EndPoint { get; private set; }
+        public int Port { get; private set; }
 
-		public TimeSpan ReadTimeout { get; set; }
+        public int ReadBufferSize { get; set; }
 
-		public TimeSpan WriteTimeout { get; set; }
+        public int WriteBufferSize { get; set; }
 
-		public TimeSpan ShutdowTimeout { get; set; }
+        public string ServerBanner { get; set; }
 
-		internal HttpServerUtility ServerUtility { get; private set; }
+        public TimeSpan ReadTimeout { get; set; }
 
-		internal HttpTimeoutManager TimeoutManager { get; private set; }
+        public TimeSpan WriteTimeout { get; set; }
 
-		#endregion
+        public TimeSpan ShutdowTimeout { get; set; }
 
-		#region Constructor
+        internal HttpServerUtility ServerUtility { get; private set; }
 
-		public HttpServer ()
-		{
-			Port = 0;
-			EndPoint = new IPEndPoint (IPAddress.Loopback, Port);
-			ReadBufferSize = WriteReadBufferSize;
-			WriteBufferSize = WriteReadBufferSize;
-			ShutdowTimeout = TimeSpan.FromSeconds (ShutdownTimeout);
-			ReadTimeout = TimeSpan.FromMinutes (WriteReadTimeOut);
-			WriteTimeout = TimeSpan.FromMinutes (WriteReadTimeOut);
-			ServerBanner = string.Format ("PHttp/{0}", GetType ().Assembly.GetName ().Version);
-		}
+        internal HttpTimeoutManager TimeoutManager { get; private set; }
 
-		public HttpServer(int port) : this(){
-			Port = port;
-			EndPoint.Port = port;
-		}
+        #endregion
 
-		#endregion
+        #region Constructor
 
-		#region Public Methods
+        public HttpServer()
+        {
+            Port = 0;
+            EndPoint = new IPEndPoint(IPAddress.Loopback, Port);
+            ReadBufferSize = WriteReadBufferSize;
+            WriteBufferSize = WriteReadBufferSize;
+            ShutdowTimeout = TimeSpan.FromSeconds(ShutdownTimeout);
+            ReadTimeout = TimeSpan.FromMinutes(WriteReadTimeOut);
+            WriteTimeout = TimeSpan.FromMinutes(WriteReadTimeOut);
+            ServerBanner = string.Format("PHttp/{0}", GetType().Assembly.GetName().Version);
+        }
 
-		public void Start ()
-		{
-			if (_state != HttpServerState.Stopped)
-				return;
+        public HttpServer(int port) : this()
+        {
+            Port = port;
+            EndPoint.Port = port;
+        }
 
-			State = HttpServerState.Starting;
-			Console.WriteLine ("Starting server at: " + EndPoint);
-			TimeoutManager = new HttpTimeoutManager (this);
-			var listener = new TcpListener (EndPoint);
+        #endregion
 
-			try{
-				listener.Start();
-				_tcpListener = listener;
-				ServerUtility = new HttpServerUtility();
-				Console.WriteLine("Server is running at: " + EndPoint);				
-			}
-			catch (Exception e){ 
-				State = HttpServerState.Stopped;
-				throw new PHttpException ("Server failed to start", e);
-			}
+        #region Public Methods
 
-			State = HttpServerState.Started;
-			BeginAcceptTcpClient ();
-		}
+        public void Start()
+        {
+            VerifyState(HttpServerState.Stopped);
 
-		public void Stop ()
-		{
+            State = HttpServerState.Starting;
+            Console.WriteLine("Starting server at: " + EndPoint);
+            TimeoutManager = new HttpTimeoutManager(this);
+            var listener = new TcpListener(EndPoint);
 
-		}
+            try
+            {
+                listener.Start();
+                EndPoint = (IPEndPoint)listener.LocalEndpoint;
+                _tcpListener = listener;
+                ServerUtility = new HttpServerUtility();
+                Console.WriteLine("Server is running at: " + EndPoint);
+            }
+            catch (Exception e)
+            {
+                State = HttpServerState.Stopped;
+                throw new PHttpException("Server failed to start", e);
+            }
 
-		#endregion
+            State = HttpServerState.Started;
+            BeginAcceptTcpClient();
+        }
 
-		#region Private/Internal Methods
+        public void Stop()
+        {
+            VerifyState(HttpServerState.Started);
+            State = HttpServerState.Stopping;
 
-		private void VerifyState (HttpServerState state)
-		{
-			if (_disposed)
-				throw new ObjectDisposedException (this.GetType ().Name);
+            try
+            {
+                _tcpListener.Stop();
+                StopClients();
+            }
+            catch (Exception e)
+            {
+                State = HttpServerState.Started;
+                throw new PHttpException("Failed to stop HTTP server", e);
+            }
+            finally
+            {
+                _tcpListener = null;
+                State = HttpServerState.Stopped;
+                Console.WriteLine("Stopped HTTP server");
+            }
+        }
 
-			if (_state != state) {
-				throw new InvalidOperationException ("Expected server to be in the state");
-			}
-		}
+        #endregion
 
-		private void StopClients ()
-		{
+        #region Private/Internal Methods
 
-		}
+        private void VerifyState(HttpServerState state)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(this.GetType().Name);
 
-		private void BeginAcceptTcpClient ()
-		{
-			var listener = _tcpListener;
-			if (listener == null)
-				return;
+            if (_state != state)
+            {
+                throw new InvalidOperationException("Expected server to be in the state");
+            }
+        }
 
-			listener.BeginAcceptTcpClient (AcceptTcpClientCallback, null);
-		}
+        private void StopClients()
+        {
+            var shutdownStarted = DateTime.Now;
+            bool forceShutdown = false;
+            // Clients that are waiting for new requests are closed.
 
-		private void AcceptTcpClientCallback (IAsyncResult asyncResult)
-		{
+            List<HttpClient> clients;
+            lock (_syncLock)
+            {
+                clients = new List<HttpClient>(_clients.Keys);
+            }
 
-		}
+            foreach (var client in clients)
+            {
+                client.RequestClose();
+            }
 
-		private void RegisterClient (HttpClient client)
-		{
+            // First give all clients a chance to complete their running requests.
+            while (true)
+            {
+                lock (_syncLock)
+                {
+                    if (_clients.Count == 0)
+                        break;
+                }
 
-		}
+                var shutdownRunning = DateTime.Now - shutdownStarted;
 
-		internal void UnregisterClient (HttpClient client)
-		{
+                if (shutdownRunning.TotalSeconds >= ShutdownTimeout)
+                {
+                    forceShutdown = true;
+                    break;
+                }
+                _clientsChangedEvent.WaitOne(ShutdownTimeout - Convert.ToInt32(shutdownRunning.TotalSeconds));
+            }
 
-		}
+            if (!forceShutdown)
+                return;
 
-		protected virtual void OnStateChanged (EventArgs args)
-		{
-			if (StateChanged != null) {
-				StateChanged.Invoke (this, args);
-			}
-		}
+            // If there are still clients running after the timeout, their
+            // connections will be forcibly closed.
+            lock (_syncLock)
+            {
+                clients = new List<HttpClient>(_clients.Keys);
+            }
 
-		#endregion
+            foreach (var client in clients)
+            {
+                client.ForceClose();
+            }
 
-		#region Implemented Methods
+            // Wait for the registered clients to be cleared.
+            while (true)
+            {
+                lock (_syncLock)
+                {
+                    if (_clients.Count == 0)
+                        break;
+                }
+                _clientsChangedEvent.WaitOne();
+            }
+        }
 
-		public void Dispose ()
-		{
-			if (_disposed)
-				return;
-			
-			if (_state == HttpServerState.Started)
-				Stop ();
-			
-			if (_clientsChangedEvent != null) {
-				_clientsChangedEvent.Dispose();
-				_clientsChangedEvent = null;
-			}
+        private void BeginAcceptTcpClient()
+        {
+            var listener = _tcpListener;
+            if (listener != null)
+                listener.BeginAcceptTcpClient(AcceptTcpClientCallback, null);
+        }
 
-			_disposed = true;
-		}
+        private void AcceptTcpClientCallback(IAsyncResult asyncResult)
+        {
+            var listener = _tcpListener;
+            if (listener == null) return;
 
-		#endregion
-	}
+            try
+            {
+                var tcpClient = listener.EndAcceptTcpClient(asyncResult);
+
+                if (listener.Server == null || _state != HttpServerState.Started)
+                {
+                    tcpClient.Close();
+                    return;
+                }
+
+                var client = new HttpClient(this, tcpClient);
+                RegisterClient(client);
+
+                client.BeginRequest();
+
+                BeginAcceptTcpClient();
+
+            }
+            catch (ObjectDisposedException)
+            {
+
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error accepting Tcp Client: {0}", e.Message);
+            }
+
+        }
+
+        internal void RaiseRequest(HttpContext context)
+        {
+            if (context == null)
+                throw new ArgumentNullException("context");
+            OnRequestReceived(new HttpRequestEventArgs(context));
+        }
+
+        protected virtual void OnRequestReceived(HttpRequestEventArgs httpRequestEventArgs)
+        {
+            if (RequestReceived != null)
+            {
+                RequestReceived.Invoke(this, httpRequestEventArgs);
+            }
+        }
+
+        internal bool RaiseUnhandledException(HttpContext context, Exception exception)
+        {
+            if (context == null)
+                throw new ArgumentNullException("context");
+            var e = new HttpExceptionEventArgs(context, exception);
+            OnUnhandledException(e);
+            return e.Handled;
+        }
+
+        protected virtual void OnUnhandledException(HttpExceptionEventArgs httpExceptionEventArgs)
+        {
+            if (UnhandledException != null)
+            {
+                UnhandledException.Invoke(this, httpExceptionEventArgs);
+            }
+        }
+
+        private void RegisterClient(HttpClient client)
+        {
+            if (client == null) throw new ArgumentNullException("client");
+            lock (_syncLock)
+            {
+                _clients.Add(client, true);
+                _clientsChangedEvent.Set();
+            }
+
+        }
+
+        internal void UnregisterClient(HttpClient client)
+        {
+            if (client == null) throw new ArgumentNullException("client");
+
+            lock (_syncLock)
+            {
+                if (_clients.ContainsKey(client))
+                {
+                    _clients.Remove(client);
+                    _clientsChangedEvent.Set();
+                }
+
+            }
+        }
+
+        protected virtual void OnStateChanged(HttpStateChangedEventArgs args)
+        {
+            if (StateChanged != null)
+            {
+                StateChanged.Invoke(this, args);
+            }
+        }
+
+        #endregion
+
+        #region Implemented Methods
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            if (_state == HttpServerState.Started)
+                Stop();
+
+            if (_clientsChangedEvent != null)
+            {
+                ((IDisposable)_clientsChangedEvent).Dispose();
+                _clientsChangedEvent = null;
+            }
+
+            if (TimeoutManager != null)
+            {
+                TimeoutManager.Dispose();
+                TimeoutManager = null;
+            }
+
+            _disposed = true;
+        }
+
+
+        #endregion
+    }
 }
