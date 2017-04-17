@@ -1,0 +1,55 @@
+﻿<div>
+    <div class="modal fade" id="shortenedurlmodal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                    <h4 class="modal-title" id="myModalLabel">{{ShortenedUrlMessage}}</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-xs-12 col-sm-6 col-md-8">
+                            <div class="form-group">
+                                <input type="text" name="shortenedUrl" id="shortenedUrl" value="{{Model.ShortenedUrl}}" readonly class="form-control">
+                                <br />
+                            </div>
+                        </div>
+                        <div class="col-xs-6 col-md-4" style="vertical-align:central"><a href="/shrtnr/Analytics/Index/{{Suffix}}">Analytics</a></div>
+                        <img class="center-block" src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{Model.ShortenedUrl}}" />
+                        <br /><br />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <form method="post" action="#">
+        <div class="form-group {{# if Model.EmptyUrl}}has-error{{/if}}">
+            <input type="text" {{# if Model.OriginalUrl}} value="{{Model.OriginalUrl}}" {{/if}} name="originalUrl" id="originalUrl" placeholder="Your original URL here" class="form-control">
+            <div {{# unless Model.EmptyUrl}} style="display: none" {{/unless}} class="alert alert-danger" role="alert">
+                {{Model.EmptyUrlMessage}}
+            </div>
+        </div>
+
+        {{# unless AuthenticatedUser}}
+        <div class="g-recaptcha" data-sitekey="6LcDaBwUAAAAAKW-perpUMB58drfeALeZAoSl4QG"></div>
+        <div {{# unless Model.InvalidCaptcha}} style="display: none" {{/unless}} class="alert alert-danger" role="alert">
+            {{Model.InvalidCaptchaMessage}}
+        </div>
+        <br />
+        {{/unless}}
+        <button class="btn btn-primary" type="submit">SHORTEN URL</button>
+    </form>
+
+</div>
+
+{{# if Model.ShortenedUrl}}
+<script>
+    $(function () {
+        $('#shortenedurlmodal').modal('show');
+    });
+</script>
+{{/if}}

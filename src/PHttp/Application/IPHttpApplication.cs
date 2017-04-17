@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Reflection;
+using System.Threading.Tasks;
 
 namespace PHttp.Application
 {
@@ -8,9 +10,10 @@ namespace PHttp.Application
         event PreApplicationStartMethod PreApplicationStart;
         event ApplicationStartMethod ApplicationStart;
         void Start();
-        void ExecuteAction();
+        void ExecuteAction(HttpContext context);
     }
 
     public delegate void PreApplicationStartMethod(Type type, string method);
     public delegate void ApplicationStartMethod(Type type, string method);
+
 }

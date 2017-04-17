@@ -7,19 +7,13 @@ using System.Threading.Tasks;
 
 namespace Mvc
 {
-    public class Application : IPHttpApplication
+    public class Application : PHttpApplication
     {
-        public string Name { get; set; }
-        public event PreApplicationStartMethod PreApplicationStart;
-        public event ApplicationStartMethod ApplicationStart;
-        public void Start()
+        public override void Start()
         {
-            Console.WriteLine("This is a call MVC project start method");
-        }
+            RouteConfig.RegisterRoute(RouteConfiguration);
 
-        public void ExecuteAction()
-        {
-            Console.WriteLine("This is a call MVC project execute action method");
+           // Console.WriteLine("This is a call MVC project start method");
         }
     }
 }

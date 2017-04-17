@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mvc", "Mvc\Mvc.csproj", "{8
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Client", "Client\Client.csproj", "{66D66416-D8C3-4A63-8FF7-5038B65AEDF7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UrlShortener", "UrlShortener\UrlShortener.csproj", "{570020C0-83E8-4D12-BE57-018C5C83A72E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UrlShortener.DAL", "UrlShortener.DAL\UrlShortener.DAL.csproj", "{6DBB90A2-DD4A-4274-A569-2583EEFF2EE0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,8 +31,19 @@ Global
 		{66D66416-D8C3-4A63-8FF7-5038B65AEDF7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{66D66416-D8C3-4A63-8FF7-5038B65AEDF7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{66D66416-D8C3-4A63-8FF7-5038B65AEDF7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{570020C0-83E8-4D12-BE57-018C5C83A72E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{570020C0-83E8-4D12-BE57-018C5C83A72E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{570020C0-83E8-4D12-BE57-018C5C83A72E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{570020C0-83E8-4D12-BE57-018C5C83A72E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6DBB90A2-DD4A-4274-A569-2583EEFF2EE0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6DBB90A2-DD4A-4274-A569-2583EEFF2EE0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6DBB90A2-DD4A-4274-A569-2583EEFF2EE0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6DBB90A2-DD4A-4274-A569-2583EEFF2EE0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		EnterpriseLibraryConfigurationToolBinariesPathV6 = packages\EnterpriseLibrary.TransientFaultHandling.6.0.1304.0\lib\portable-net45+win+wp8;packages\EnterpriseLibrary.TransientFaultHandling.Data.6.0.1304.1\lib\NET45
 	EndGlobalSection
 EndGlobal

@@ -1,0 +1,27 @@
+﻿<div class="table-responsive">
+
+    <table class="table table-striped table-bordered table-hover">
+        <tr>
+            <th>Original Url</th>
+            <th>Shortened Date</th>
+            <th>Shortened Url</th>
+            <th>Number of Clicks</th>
+            <th></th>
+            <th></th>
+        </tr>
+        {{# each UrlDisplayInformation }}
+        <tr>
+            <td>{{this.OriginalUrl}}</td>
+            <td>{{this.CreationDateString}}</td>
+            <td>{{this.ShortenedUrl}}</td>
+            <td>{{this.ClickNumbers}}</td>
+            <td>
+                <a class="btn btn-primary" href="/shrtnr/Analytics/Index/{{this.Suffix}}" role="button">Analytics</a>
+            </td>
+            <td>
+                <a class="btn btn-primary" href="/shrtnr/UrlList/Delete/{{this.Suffix}}" role="button">Delete</a>
+            </td>
+        </tr>
+        {{/each}}
+    </table>
+</div>

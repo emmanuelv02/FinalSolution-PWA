@@ -1,0 +1,167 @@
+﻿<script src="Scripts/canvasjs.min.js"></script>
+
+
+
+<h3>Total Clicks: {{TotalClicks}}</h3>
+<div id="ClickChartContainer" style="width: 100%; height:400px;"></div>
+<br/>
+<h3>Referrers</h3>
+<div id="ReferrersChartContainer" style="width: 100%; height:400px;"></div>
+<br />
+<h3>Browsers</h3>
+<div id="BrowsersChartContainer" style="width: 100%; height:400px;"></div>
+<br />
+<h3>Platforms</h3>
+<div id="PlatformsChartContainer" style="width: 100%; height:400px;"></div>
+<br />
+<h3>Locations</h3>
+<div id="LocationsChartContainer" style="width: 100%; height:400px;"></div>
+
+<script type="text/javascript">
+
+    $(function () {
+        var chart = new CanvasJS.Chart("ClickChartContainer", {
+            theme: "theme2",
+            animationEnabled: true,
+            title: {
+                text: "{{ClickGraphTitle}}",
+                fontSize: 25
+            },
+            axisX: {
+                valueFormatString: "{{ValueFormat}}",
+                interval: 1,
+                intervalType: "{{IntervalType}}"
+
+            },
+            axisY: {
+                title: "Clicks"
+            },
+
+            data: [
+            {
+                type: "area",
+                dataPoints: [
+                    {{# each ClickDataPoints }}
+
+                { x: new Date({{this.X.Year}}, {{this.JsMonth}}, {{this.X.Day}}), y: {{this.Y}} },
+                 
+                    {{/each}}
+                ],
+
+            }
+            ]
+        });
+
+        chart.render();
+    });
+</script>
+
+
+
+
+
+<script type="text/javascript">
+    $(function () {
+        var chart2 = new CanvasJS.Chart("ReferrersChartContainer", {
+            animationEnabled: true,
+            legend: {
+                fontSize: 20,
+                fontFamily: "Helvetica"
+            },
+            theme: "theme2",
+            data: [
+            {
+                type: "doughnut",
+                indexLabelFontFamily: "Garamond",
+                indexLabelFontSize: 20,
+                indexLabel: "{label} {y}%",
+                startAngle: -20,
+                showInLegend: false,
+                toolTipContent: "{legendText} {y}%",
+                dataPoints: [
+
+                {{# each ReferrerDataPoints }}
+    { y: {{this.Y}}, legendText: "{{this.LegendText}}", label: "{{this.LegendText}}" },
+
+    {{/each}}
+                ],
+            }
+            ]
+        });
+        chart2.render();
+    });
+</script>
+
+
+
+
+<script type="text/javascript">
+
+    $(function () {
+        var chart = new CanvasJS.Chart("BrowsersChartContainer", {
+            theme: "theme2",
+            animationEnabled: true,
+            data: [
+            {
+                type: "column",
+                dataPoints: [
+                    {{# each BrowserDataPoints }}
+
+                { y: {{this.Y}}, label: "{{this.Label}}" },
+					
+                     {{/each}}
+                ],
+            }
+            ]
+        });
+        chart.render();
+    });
+</script>
+
+
+<script type="text/javascript">
+
+    $(function () {
+        var chart = new CanvasJS.Chart("PlatformsChartContainer", {
+            theme: "theme2",
+            animationEnabled: true,
+            data: [
+            {
+                type: "column",
+                dataPoints: [
+                    {{# each PlatformDataPoints }}
+
+                { y: {{this.Y}}, label: "{{this.Label}}" },
+
+                     {{/each}}
+                ],
+            }
+            ]
+        });
+        chart.render();
+    });
+</script>
+
+
+<script type="text/javascript">
+
+    $(function () {
+        var chart = new CanvasJS.Chart("LocationsChartContainer", {
+            theme: "theme2",
+            animationEnabled: true,
+            data: [
+            {
+                type: "column",
+                dataPoints: [
+                    {{# each LocationDataPoints }}
+
+                { y: {{this.Y}}, label: "{{this.Label}}" },
+
+                     {{/each}}
+                ],
+            }
+            ]
+        });
+        chart.render();
+    });
+</script>

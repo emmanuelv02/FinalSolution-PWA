@@ -30,7 +30,7 @@ namespace PHttp
             get { return !String.IsNullOrEmpty(RedirectLocation); }
         }
 
-        public HttpOutputStream OutputStream { get; private set; }
+        public HttpOutputStream OutputStream { get; internal set; }
 
         public string RedirectLocation { get; set; }
 
