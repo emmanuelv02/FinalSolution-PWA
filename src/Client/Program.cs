@@ -34,12 +34,10 @@ namespace Client
             var pHttpSites = new Dictionary<string, IPHttpApplication>(StringComparer.OrdinalIgnoreCase);
             foreach (var site in result.Sites)
             {
-                Console.WriteLine("Loading app at" + site.PhysicalPath);
                 var application = pHttpStartup.LoadApp(site.PhysicalPath);
                 if (application != null)
                 {
                     pHttpSites.Add(site.VirtualPath, application);
-                    Console.WriteLine("Application " + site.VirtualPath + " Loaded");
                 }
             }
 
@@ -57,7 +55,7 @@ namespace Client
                         e.Response.Redirect(e.Request.Path + "/");
                         return;
                     }
-                    Console.WriteLine("procesing request from " + e.Request.UserHostName);
+
                     var siteVirtualPath = UrlHelper.GetSiteVirtualPath(e.Request.Path);
                     if (pHttpSites.ContainsKey(siteVirtualPath))
                     {
@@ -65,7 +63,7 @@ namespace Client
 
                         if (requestedSite != null)
                         {
-                             requestedSite.ExecuteAction(e.Context);
+                            requestedSite.ExecuteAction(e.Context);
                         }
                         else
                         {
@@ -78,7 +76,7 @@ namespace Client
 
                 // Start the default web browser.
 
-          //      Process.Start(String.Format("http://{0}/", server.EndPoint));
+                //      Process.Start(String.Format("http://{0}/", server.EndPoint));
 
                 Console.WriteLine("Press any key to continue...");
                 Console.ReadKey();

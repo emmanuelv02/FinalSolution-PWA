@@ -94,12 +94,12 @@ namespace PHttp
             Redirect(location, false);
         }
 
-        public void RedirectPermanent(string location)
+        public void RedirectAbsolutePermanent(string location)
         {
-            Redirect(location, true);
+            Redirect(location, true, true);
         }
 
-        private void Redirect(string location, bool permanent)
+        private void Redirect(string location, bool permanent, bool absolute = false)
         {
             if (location == null)
                 throw new ArgumentNullException("location");
@@ -109,33 +109,41 @@ namespace PHttp
                 var sb = new StringBuilder();
                 var url = _context.Request.Url;
 
-                sb.Append(url.Scheme);
-                sb.Append("://");
-                sb.Append(url.Host);
-
-                if (!url.IsDefaultPort)
+                if (!absolute)
                 {
-                    sb.Append(':');
-                    sb.Append(url.Port);
-                }
+                    sb.Append(url.Scheme);
+                    sb.Append("://");
+                    sb.Append(url.Host);
 
-                if (location.Length == 0)
-                    location = _context.Request.Path;
+                    if (!url.IsDefaultPort)
+                    {
+                        sb.Append(':');
+                        sb.Append(url.Port);
+                    }
 
-                if (location[0] == '/')
-                {
-                    sb.Append(location);
+                    if (location.Length == 0)
+                        location = _context.Request.Path;
+
+                    if (location[0] == '/')
+                    {
+                        sb.Append(location);
+                    }
+                    else
+                    {
+                        string path = _context.Request.Path;
+                        int pos = path.LastIndexOf('/');
+
+                        if (pos == -1)
+                            sb.Append('/');
+                        else
+                            sb.Append(path.Substring(0, pos + 1));
+
+                        sb.Append(location);
+                    }
                 }
                 else
                 {
-                    string path = _context.Request.Path;
-                    int pos = path.LastIndexOf('/');
-
-                    if (pos == -1)
-                        sb.Append('/');
-                    else
-                        sb.Append(path.Substring(0, pos + 1));
-
+                    sb.Append("http://");
                     sb.Append(location);
                 }
 

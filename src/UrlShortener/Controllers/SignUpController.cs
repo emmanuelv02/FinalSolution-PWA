@@ -1,5 +1,6 @@
 ﻿using PHttp.Application;
 using UrlShortener.DAL;
+using UrlShortener.DAL.Models;
 using UrlShortener.DAL.Repositories;
 using UrlShortener.Models;
 
@@ -72,7 +73,7 @@ namespace UrlShortener.Controllers
 
             if (!isValid) return View(userModel);
 
-            var user = new user();
+            var user = new User();
             user.Password = userModel.Password;
             user.Username = userModel.Username;
 

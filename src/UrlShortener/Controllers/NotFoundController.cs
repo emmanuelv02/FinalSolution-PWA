@@ -3,7 +3,7 @@ using System.IO;
 using PHttp.Application;
 using System.Net;
 using Newtonsoft.Json;
-using UrlShortener.DAL;
+using UrlShortener.DAL.Models;
 using UrlShortener.DAL.Repositories;
 
 namespace UrlShortener.Controllers
@@ -25,7 +25,7 @@ namespace UrlShortener.Controllers
 
             //Store Analitics Information
 
-            var click = new click();
+            var click = new Click();
 
             var request = ControllerContext.HttpContext.Request;
 

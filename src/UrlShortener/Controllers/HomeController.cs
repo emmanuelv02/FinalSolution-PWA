@@ -4,8 +4,11 @@ using System.Net;
 using System.Resources;
 using System.Text;
 using Newtonsoft.Json;
+using OpenQA.Selenium;
+using OpenQA.Selenium.PhantomJS;
 using PHttp.Application;
 using UrlShortener.DAL;
+using UrlShortener.DAL.Models;
 using UrlShortener.DAL.Repositories;
 using UrlShortener.Models;
 
@@ -66,7 +69,7 @@ namespace UrlShortener.Controllers
             }
 
             var newUrlSuffix = GetRandomShortenedSuffix(5);
-            url = new url { OriginalUrl = originalUrl, ShortenedSuffix = newUrlSuffix };
+            url = new Url { OriginalUrl = originalUrl, ShortenedSuffix = newUrlSuffix };
             url.CreationDate = DateTime.Now;
 
             if (AuthenticatedUser != null)
@@ -74,15 +77,39 @@ namespace UrlShortener.Controllers
             else
                 urlRepository.Save(url);
 
+
+
             return GetShortenedResult(url);
         }
 
-        private ActionResult GetShortenedResult(url url)
+        public string TakeScreenshot(string url)
+        {
+            var driver = new PhantomJSDriver();
+
+            if (!url.Contains(":"))
+            {
+                url = "http://" + url;
+            }
+            try
+            {
+                driver.Url = url;
+                var screenshot = ((ITakesScreenshot)driver).GetScreenshot();
+                return screenshot.AsBase64EncodedString;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+                throw;
+            }
+        }
+
+        private ActionResult GetShortenedResult(Url url)
         {
             var siteUrl = "http://" + GetSiteUrl();
 
             ViewBag.ShortenedUrlMessage = "Your link has been shortened";
             ViewBag.Suffix = url.ShortenedSuffix;
+            ViewBag.PageScreenshot = TakeScreenshot(url.OriginalUrl);
             return View(new ShortenedUrlModel { ShortenedUrl = siteUrl + url.ShortenedSuffix });
         }
 

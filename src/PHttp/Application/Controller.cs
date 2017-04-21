@@ -111,7 +111,7 @@ namespace PHttp.Application
 
         protected void Redirect(string redirectionUrl)
         {
-            ControllerContext.HttpContext.Response.Redirect(redirectionUrl);
+            ControllerContext.HttpContext.Response.RedirectAbsolutePermanent(redirectionUrl);
         }
 
         protected internal virtual ViewResult View(string viewName, string masterName, object model, StatusCode statusCode = StatusCode.Ok)
